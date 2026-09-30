@@ -139,7 +139,16 @@ async function createRoom(form) {
   };
   try {
     if (hasSupabase) {
-      const { data, error } = await sb.from("rooms").insert(room).select().single();
+      const { data, error } = await sb.rpc("create_room", {
+        p_id: room.id,
+        p_code: room.code,
+        p_host_token: room.host_token,
+        p_host_name: room.host_name,
+        p_rounds: room.rounds,
+        p_range_max: room.range_max,
+        p_target_factor: room.target_factor,
+        p_duration_sec: room.duration_sec
+      }).single();
       if (error) throw error;
       Object.assign(room, data);
     } else saveLocal(room, [], []);
@@ -157,7 +166,7 @@ async function joinRoom(form) {
     const room = await fetchRoom(code);
     if (!room) throw new Error("That room doesn't exist yet");
     if (room.status === "finished") throw new Error("That game has already ended");
-    let person = { id: uid(), room_id: room.id, name, token: uid(), joined_at: new Date().toISOString() };
+    let person = { id: uid(), room_id: room.id, name, joined_at: new Date().toISOString() };
     if (hasSupabase) {
       const { data, error } = await sb.from("participants").insert(person).select().single();
       if (error) throw error;

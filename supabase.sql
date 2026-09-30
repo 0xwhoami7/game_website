@@ -6,7 +6,6 @@ create extension if not exists pgcrypto;
 create table if not exists public.rooms (
   id uuid primary key default gen_random_uuid(),
   code text not null unique check (char_length(code) = 6),
-  host_token uuid not null,
   host_name text not null check (char_length(host_name) between 1 and 48),
   status text not null default 'lobby' check (status in ('lobby', 'answering', 'results', 'finished')),
   current_round integer not null default 0 check (current_round >= 0),
@@ -18,11 +17,17 @@ create table if not exists public.rooms (
   created_at timestamptz not null default now()
 );
 
+-- Facilitator secrets live separately so a public room query can never expose
+-- them. This table has RLS enabled below and intentionally has no read policy.
+create table if not exists public.room_hosts (
+  room_id uuid primary key references public.rooms(id) on delete cascade,
+  host_token uuid not null unique
+);
+
 create table if not exists public.participants (
   id uuid primary key default gen_random_uuid(),
   room_id uuid not null references public.rooms(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 32),
-  token uuid not null,
   joined_at timestamptz not null default now()
 );
 
@@ -38,6 +43,38 @@ create table if not exists public.responses (
 
 create index if not exists participants_room_idx on public.participants(room_id);
 create index if not exists responses_room_round_idx on public.responses(room_id, round);
+
+-- Creates the public room row and its private facilitator secret atomically.
+create or replace function public.create_room(
+  p_id uuid,
+  p_code text,
+  p_host_token uuid,
+  p_host_name text,
+  p_rounds integer,
+  p_range_max numeric,
+  p_target_factor numeric,
+  p_duration_sec integer
+)
+returns public.rooms
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare new_room public.rooms;
+begin
+  insert into public.rooms (
+    id, code, host_name, rounds, range_max, target_factor, duration_sec
+  ) values (
+    p_id, upper(p_code), p_host_name, p_rounds, p_range_max,
+    p_target_factor, p_duration_sec
+  ) returning * into new_room;
+
+  insert into public.room_hosts (room_id, host_token)
+  values (new_room.id, p_host_token);
+
+  return new_room;
+end;
+$$;
 
 -- Sensitive room state changes go through this token-checked function. The
 -- browser keeps the random token only on the facilitator's device.
@@ -64,7 +101,10 @@ begin
       current_round = p_current_round,
       started_at = p_started_at
   where id = p_room_id
-    and host_token = p_host_token
+    and exists (
+      select 1 from public.room_hosts h
+      where h.room_id = p_room_id and h.host_token = p_host_token
+    )
     and p_current_round between 0 and rounds
   returning * into updated_room;
 
@@ -75,17 +115,25 @@ begin
 end;
 $$;
 
+revoke all on function public.create_room(uuid, text, uuid, text, integer, numeric, numeric, integer) from public;
+grant execute on function public.create_room(uuid, text, uuid, text, integer, numeric, numeric, integer) to anon;
 revoke all on function public.host_update_room(uuid, uuid, text, integer, timestamptz) from public;
 grant execute on function public.host_update_room(uuid, uuid, text, integer, timestamptz) to anon;
 
 alter table public.rooms enable row level security;
+alter table public.room_hosts enable row level security;
 alter table public.participants enable row level security;
 alter table public.responses enable row level security;
 
--- Workshop rooms are deliberately anonymous and short-lived. The random host_token
--- is required for room changes, while participant submissions are insert-only.
+-- The publishable browser key maps unsigned visitors to the anon role. Grant
+-- only the operations the game UI uses; RLS policies below further restrict them.
+grant select on public.rooms to anon;
+grant select, insert on public.participants to anon;
+grant select, insert on public.responses to anon;
+
+-- Workshop rooms are deliberately anonymous and short-lived. The random
+-- host_token is required for room changes, while submissions are insert-only.
 create policy "rooms are readable" on public.rooms for select to anon using (true);
-create policy "anyone can create a room" on public.rooms for insert to anon with check (true);
 
 create policy "participants are readable" on public.participants for select to anon using (true);
 create policy "anyone can join an open room" on public.participants for insert to anon

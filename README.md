@@ -18,17 +18,17 @@ Open `http://localhost:8080`. Until Supabase is configured, the app uses local b
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor**, paste in [`supabase.sql`](./supabase.sql), and run it once.
-3. Open **Project Settings → API** and copy the project URL and anon/public key.
+3. Open the project's **Connect** dialog and copy the project URL and publishable key (`sb_publishable_...`).
 4. Paste both values into [`config.js`](./config.js):
 
 ```js
 window.COMMON_GROUND_CONFIG = {
   supabaseUrl: "https://YOUR_PROJECT.supabase.co",
-  supabaseAnonKey: "YOUR_ANON_KEY"
+  supabaseAnonKey: "YOUR_PUBLISHABLE_KEY"
 };
 ```
 
-The anon key is designed to be public. Keep Row Level Security enabled and never put a Supabase service-role key in this file.
+The publishable key is designed for browser use. Keep Row Level Security enabled and never put a Supabase secret or service-role key in this file.
 
 Facilitator updates use a random private token and the token is checked inside a database function. Participants never receive it.
 
