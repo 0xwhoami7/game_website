@@ -192,6 +192,16 @@ a { color: inherit; }
 .chart-wrap { width: 100%; min-height: 270px; position: relative; }
 .chart-wrap svg { width: 100%; height: auto; overflow: visible; }
 .chart-label { font-family: "DM Mono"; font-size: 10px; fill: #737d73; }
+.chart-point { cursor: pointer; outline: none; }
+.chart-point-hit { fill: transparent; }
+.chart-point-dot { fill: var(--paper); stroke: var(--green); stroke-width: 4; transition: r .15s ease, fill .15s ease; }
+.chart-point:hover .chart-point-dot,
+.chart-point:focus .chart-point-dot { r: 8px; fill: var(--lime); }
+.chart-tooltip { opacity: 0; pointer-events: none; transform-box: fill-box; transition: opacity .15s ease; }
+.chart-tooltip rect { fill: var(--ink); filter: drop-shadow(0 5px 8px rgba(24,34,25,.18)); }
+.chart-tooltip text { fill: white; font: 500 11px "DM Mono", monospace; }
+.chart-point:hover .chart-tooltip,
+.chart-point:focus .chart-tooltip { opacity: 1; }
 .histogram { display: grid; grid-template-columns: repeat(10, 1fr); gap: 7px; height: 210px; align-items: end; border-bottom: 1px solid var(--line); padding: 0 6px; }
 .hist-bin { height: 100%; display: flex; flex-direction: column; justify-content: end; align-items: center; gap: 7px; }
 .hist-count { font: 10px "DM Mono"; color: var(--muted); min-height: 13px; }
